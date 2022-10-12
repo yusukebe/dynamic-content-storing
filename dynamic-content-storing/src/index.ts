@@ -9,7 +9,6 @@ type Bindings = {
 
 type Metadata = {
   headers: Record<string, string>
-  contentType: string
 }
 
 const headersToRecord = (headers: Headers) => {
