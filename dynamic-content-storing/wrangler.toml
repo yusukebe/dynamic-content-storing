@@ -1,0 +1,9 @@
+name = "dynamic-content-storing"
+compatibility_date = "2022-10-11"
+
+kv_namespaces = [
+  { binding = "DYNAMIC_CONTENT_STORE", preview_id = "8b2c77c28dab4b32ba84de54e35777a6",id ="2a72c4badf564487ae463c32f819d5bf" }
+]
+
+[vars]
+ORIGIN_HOST = 'yusukebe.com'
