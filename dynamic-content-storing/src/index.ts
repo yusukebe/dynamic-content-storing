@@ -27,25 +27,29 @@ const app = new Hono<{ Bindings: Bindings }>()
 
 app.use('*', logger())
 
-const createCache = async (c: Context, originURL: string, staleResponse: Response) => {
-  staleResponse = staleResponse.clone()
-  let body = staleResponse.body
-  let headers = staleResponse.headers
+const createCache = async (
+  c: Context<'/', { Bindings: Bindings }>,
+  originURL: string,
+  response?: Response
+) => {
+  if (!response) {
+    console.log(`fetch from ${originURL}`)
+    response = await fetch(originURL)
+  }
+  const body = await response.arrayBuffer()
+  const headers = response.headers
+  const headersRecord = headersToRecord(headers)
 
   console.log(`store stale: ${originURL}`)
   await c.env.DYNAMIC_CONTENT_STORE.put(`stale: ${originURL}`, body, {
     expirationTtl: staleTtl,
-    metadata: { headers: headersToRecord(headers) },
+    metadata: { headers: headersRecord },
   })
-
-  const response = await fetch(originURL)
-  body = response.body
-  headers = response.headers
 
   console.log(`store fresh: ${originURL}`)
   await c.env.DYNAMIC_CONTENT_STORE.put(`fresh: ${originURL}`, body, {
     expirationTtl: ttl,
-    metadata: { headers: headersToRecord(headers) },
+    metadata: { headers: headersRecord },
   })
 }
 
@@ -68,11 +72,12 @@ app.get('/posts/', async (c) => {
     if (value && metadata) {
       console.log(`${originURL} is expired but the stale is found`)
       response = new Response(value, { headers: metadata.headers })
+      c.executionCtx.waitUntil(createCache(c, originURL))
     } else {
       console.log(`fetch from ${originURL}`)
       response = await fetch(originURL)
+      c.executionCtx.waitUntil(createCache(c, originURL, response))
     }
-    c.executionCtx.waitUntil(createCache(c, originURL, response))
   }
 
   return response
@@ -80,6 +85,7 @@ app.get('/posts/', async (c) => {
 
 app.delete('/posts/', async (c) => {
   const originURL = `https://${c.env.ORIGIN_HOST}/posts/`
+  // Force delete
   await c.env.DYNAMIC_CONTENT_STORE.delete(`fresh: ${originURL}`)
   await c.env.DYNAMIC_CONTENT_STORE.delete(`stale: ${originURL}`)
   return c.redirect('/posts/')
